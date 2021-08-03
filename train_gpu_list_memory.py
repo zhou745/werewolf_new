@@ -17,11 +17,14 @@ from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_name
 parser = argparse.ArgumentParser(description='config_name')
 parser.add_argument('--config_name', type=str)
 
-os.environ['CUDA_VISIBLE_DEVICES']="0,1,2,3"
+# os.environ['CUDA_VISIBLE_DEVICES']="0,1,2,3"
 
 def main(args):
-    pid = int(os.environ["SLURM_PROCID"])
-    jobid = os.environ["SLURM_JOBID"]
+    # pid = int(os.environ["SLURM_PROCID"])
+    # jobid = os.environ["SLURM_JOBID"]
+
+    pid = 0
+    jobid = str(1)
     config_training = np.load("training_config/"+args.config_name,allow_pickle=True).tolist()
 
     hostfile = "tcp/dist_url_" + jobid + ".txt"
@@ -172,8 +175,11 @@ def model_parallel(rank,pid,dist_url,config_training):
 
             act_type = torch.tensor(batched_data["act_type"],dtype=torch.bool).to(device)
             #compute headtoken
-            # headtoken = deepmodel_headtoken(s1_cuda,attention_mask=s1_atten_mask)
-            # q_value = deepmodel_q(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
+            headtoken = deepmodel_headtoken(s1_cuda,attention_mask=s1_atten_mask)
+            q_value = deepmodel_q(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
+
+            #compute loss
+            
 
         #train action
         if store_data.statement_sl_state_total>config_training.iterstart_memorysize_SL and \
@@ -201,8 +207,8 @@ def model_parallel(rank,pid,dist_url,config_training):
 
             act_type = torch.tensor(batched_data["act_type"],dtype=torch.bool).to(device)
             #compute headtoken
-            # headtoken = deepmodel_headtoken(s1_cuda,attention_mask=s1_atten_mask)
-            # logits = deepmodel_a(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
+            headtoken = deepmodel_headtoken(s1_cuda,attention_mask=s1_atten_mask)
+            logits = deepmodel_a(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
 
         if iter>20:
             break
