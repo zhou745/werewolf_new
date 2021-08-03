@@ -1,0 +1,11 @@
+from pywerewolf.strategy.strategy_base import strategy_base
+from pywerewolf.strategy.strategy_headtoken import strategy_headtoken
+
+#generators
+from pywerewolf.strategy.random_q_generator import random_q_generator
+from pywerewolf.strategy.random_a_generator import random_a_generator
+from pywerewolf.strategy.empty_headtoken_generator import empty_headtoken_generator
+from pywerewolf.strategy.dict_headtoken_generator import dict_headtoken_generator
+from pywerewolf.strategy.bert_q_generator import bert_q_generator
+from pywerewolf.strategy.bert_a_generator import bert_a_generator
+from pywerewolf.strategy.bert_headtoken_generator import bert_headtoken_generator
