@@ -44,5 +44,7 @@ class headtoken_model(nn.Module):
         else:
             h1 = self.bert_backbone(head_token,attention_mask=attention_mask)
 
-        h_out = h1[0][:, 0, :] + 0. * h1[0][:, :, :].mean(axis=1) + h1[1][:, :] * 0.
+        h_inter = h1[0][:, 0, :] + 0. * h1[0][:, :, :].mean(axis=1) + h1[1][:, :] * 0.
+
+        h_out = self.headtoken_mlp(h_inter)
         return(h_out)

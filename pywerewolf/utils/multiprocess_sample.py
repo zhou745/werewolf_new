@@ -32,7 +32,8 @@ def samplegame_agent(headtoken_model,a_model,q_model,
     random.seed(device_num+args.seed*pro_id+1)
 
     #create manager first
-    manager = eval(args.game_manager)(args.num_player,game_compose=args.game_compose)
+    manager = eval(args.game_manager)(args.num_player,game_compose=args.game_compose,
+                                                      game_step = args.game_step)
     offset_game = manager.offset_game_all
     #create tokenizer
     tokenizer = tokenizer_base(manager.offset_special_token)

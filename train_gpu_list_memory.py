@@ -2,12 +2,18 @@ import numpy as np
 import argparse
 import pywerewolf
 import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.nn.functional as F
+import torch.distributed as dist
+import torch.optim as optim
 from tqdm import tqdm
 import torch
 import os
 import socket
 import time
 import torch.distributed as dist
+
+from torch.utils.tensorboard import SummaryWriter
 
 from pywerewolf.werewolf_env.werewolf_manager_base import werewolf_manager_base
 from pywerewolf.werewolf_env.werewolf_manager_cyclic import werewolf_manager_cyclic
@@ -60,6 +66,7 @@ def cleanup():
     dist.destroy_process_group()
 
 def model_parallel(rank,pid,dist_url,config_training):
+    
 
     gpu = rank
     rank = pid*8+gpu
@@ -67,6 +74,12 @@ def model_parallel(rank,pid,dist_url,config_training):
     device = gpu if torch.cuda.is_available() else torch.device('cpu')
     print("current rank is %d"%(rank),flush=True)
     setup(rank,dist_url, config_training.world_size)
+
+    if not os.path.exists("tensorboard/"+config_training.save_dir):
+        os.mkdir("tensorboard/"+config_training.save_dir)
+
+    if device ==0:
+        writer = SummaryWriter("tensorboard/"+config_training.save_dir)
 
     #config for the model
     manager_fake = eval(config_training.game_manager)(config_training.num_player,game_compose=config_training.game_compose)
@@ -97,10 +110,30 @@ def model_parallel(rank,pid,dist_url,config_training):
     queue_in_list = [mp.Queue(1) for i in range(config_training.num_sampler)]
     queue_out_list = [mp.Queue(1) for i in range(config_training.num_sampler)]
 
-    proc_pool = pywerewolf.utils.start_samplegame_group(deepmodel_headtoken,deepmodel_a,deepmodel_q,
+    # proc_pool = pywerewolf.utils.start_samplegame_group(deepmodel_headtoken,deepmodel_a,deepmodel_q,
+    #                                                     queue_in_list, queue_out_list,device,config_training)
+
+    proc_pool = pywerewolf.utils.start_samplegame_group_batch(deepmodel_headtoken,deepmodel_a,deepmodel_q,
                                                         queue_in_list, queue_out_list,device,config_training)
 
 
+
+    deepmodel_headtoken_ddp = DDP(deepmodel_headtoken, device_ids=[device])
+    deepmodel_q_ddp = DDP(deepmodel_q,device_ids=[device])
+    deepmodel_a_ddp = DDP(deepmodel_a,device_ids=[device])
+
+
+    #syn the initial paramters of global model
+    for parameter in deepmodel_headtoken_ddp.parameters():
+        torch.distributed.broadcast(parameter,0,async_op=False)
+
+    for parameter in deepmodel_q_ddp.parameters():
+        torch.distributed.broadcast(parameter,0,async_op=False)
+
+    for parameter in deepmodel_a_ddp.parameters():
+        torch.distributed.broadcast(parameter,0,async_op=False)
+
+    #memory dict and list
     # act_state_dict = {}
     # statement_state_dict = {}
     # act_state_dict_sl = {}
@@ -127,6 +160,13 @@ def model_parallel(rank,pid,dist_url,config_training):
 
     batch_collect = pywerewolf.utils.batch_collector(tokenizer,config_training.aligned_size,config_training.num_player)
 
+    #optimizers
+    optimizer_headtoken = optim.Adam(deepmodel_headtoken_ddp.parameters(),betas=(0.9, 0.999),lr = config_training.lr_act, eps=1e-6, weight_decay=0., amsgrad=False)
+
+    optimizer_a = optim.Adam(deepmodel_a_ddp.parameters(),betas=(0.9, 0.999),lr = config_training.lr_act, eps=1e-6, weight_decay=0., amsgrad=False)
+
+    optimizer_q = optim.Adam(deepmodel_q_ddp.parameters(),betas=(0.9, 0.999),lr = config_training.lr_q, eps=1e-6, weight_decay=0., amsgrad=False)
+
     #main training loop
     for iter in range(config_training.max_update):
         memory = []
@@ -136,6 +176,10 @@ def model_parallel(rank,pid,dist_url,config_training):
         for q_id in range(config_training.num_sampler):
             memory += queue_out_list[q_id].get()
 
+        # for q_id in range(config_training.num_sampler):
+        #     queue_in_list[q_id].put(("done", None, None))
+
+        # pywerewolf.utils.end_samplegame_group(proc_pool)
         #process game data
         if device==0:
             str_loop = "tqdm(memory)"
@@ -144,79 +188,204 @@ def model_parallel(rank,pid,dist_url,config_training):
         for game in eval(str_loop):
             store_data(act_state_dict, statement_state_dict, act_state_dict_sl, statement_state_dict_sl, game)
 
-        deepmodel_headtoken.train()
-        deepmodel_q.train()
-        deepmodel_a.train()
+        deepmodel_q_ddp.train()
+        deepmodel_q_ddp.train()
+        deepmodel_headtoken_ddp.train()
+
+        #loss 
+        loss_a_mean = 0.
+        loss_q_mean = 0.
+
+        loss_a_act_mean = 0.
+        loss_a_statement_mean = 0.
+
+        loss_q_act_mean = 0.
+        loss_q_statement_mean = 0.
 
         #sample data for training
         if store_data.statement_state_total>config_training.iterstart_memorysize_RL and \
            store_data.act_state_total>config_training.iterstart_memorysize_RL:
-            #reset train
+            if device==0:
+                loop_str = "tqdm(range(config_training.iter_RL))"
+            else:
+                loop_str = "range(config_training.iter_RL)"
 
-            sampled_act = sampler_rl(act_state_dict,store_data.act_state_total)
-            sampled_statement = sampler_rl(statement_state_dict,store_data.statement_state_total)
+            for iter_rl in eval(loop_str):
+                #reset train
+                loss_q = 0.
+                sampled_act = sampler_rl(act_state_dict,store_data.act_state_total)
+                sampled_statement = sampler_rl(statement_state_dict,store_data.statement_state_total)
 
-            sampled_data = sampled_act + sampled_statement
-            #augment data act
-            augmented_sample_data= []
-            for one_action in sampled_data:
-                one_action_aug = augment(one_action)
-                augmented_sample_data.append(one_action_aug)
+                sampled_data = sampled_act + sampled_statement
+                #augment data act
+                augmented_sample_data= []
+                for one_action in sampled_data:
+                    one_action_aug = augment(one_action)
+                    augmented_sample_data.append(one_action_aug)
 
-            #collect batch
-            batched_data = batch_collect(augmented_sample_data)
+                #collect batch
+                batched_data = batch_collect(augmented_sample_data)
 
-            #conver to cuda
-            s1_cuda = torch.tensor(batched_data["s1"],dtype=torch.int64).to(device)
-            s1_atten_mask = torch.tensor(batched_data["s1_atten_mask"],dtype=torch.int64).to(device)
+                #conver to cuda
+                s1_cuda = torch.tensor(batched_data["s1"],dtype=torch.int64).to(device)
+                s1_atten_mask = torch.tensor(batched_data["s1_atten_mask"],dtype=torch.int64).to(device)
 
-            nlp1_cuda = torch.tensor(batched_data["nlp1"],dtype=torch.int64).to(device)
-            nlp1_atten_mask = torch.tensor(batched_data["nlp1_atten_mask"],dtype=torch.int64).to(device)
+                nlp1_cuda = torch.tensor(batched_data["nlp1"],dtype=torch.int64).to(device)
+                nlp1_atten_mask = torch.tensor(batched_data["nlp1_atten_mask"],dtype=torch.int64).to(device)
 
-            act_type = torch.tensor(batched_data["act_type"],dtype=torch.bool).to(device)
-            #compute headtoken
-            headtoken = deepmodel_headtoken(s1_cuda,attention_mask=s1_atten_mask)
-            q_value = deepmodel_q(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
+                act_type = torch.tensor(batched_data["act_type"],dtype=torch.bool).to(device)
+                #compute headtoken
+                headtoken = deepmodel_headtoken_ddp(s1_cuda,attention_mask=s1_atten_mask)
+                q_value = deepmodel_q_ddp(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
 
-            #compute loss
-            
+                estimate = torch.tensor(batched_data["finnal_reward"], dtype=torch.float32).to(device)
+                action_ids = torch.tensor(batched_data["act_ids"],dtype=torch.int64).to(device)
+
+                #compute loss
+                target_act = estimate[act_type]
+                target_nlp = estimate[~act_type]
+
+                index_act = action_ids[act_type].view(-1,1)
+                index_nlp = action_ids[~act_type].view(-1,1)
+
+                pred_q_act = q_value["act"].gather(1,index_act)
+                pred_q_nlp = q_value["statement"].gather(1, index_nlp)
+
+
+                loss_q_act = (0.5*(pred_q_act.view(-1)-target_act)**2).mean()
+                loss_q_nlp = (0.5*(pred_q_nlp.view(-1)-target_nlp)**2).mean()
+
+                loss_q = loss_q_act+loss_q_nlp + \
+                            (q_value["act"]*q_value["act"]).sum()*0. + (q_value["statement"]*q_value["statement"]).sum()*0.
+
+                # update parameters
+                optimizer_headtoken.zero_grad()
+                optimizer_q.zero_grad()
+
+                loss_q.backward()
+
+                optimizer_headtoken.step()
+                optimizer_q.step()
+
+                if device == 0:
+                    loss_q_mean = loss_q.detach().cpu().numpy() * config_training.loss_ema + loss_q_mean * (1 - config_training.loss_ema)
+                    loss_q_act_mean = loss_q_act.detach().cpu().numpy() * config_training.loss_ema + loss_q_act_mean * (1 - config_training.loss_ema)
+                    loss_q_statement_mean = loss_q_nlp.detach().cpu().numpy() * config_training.loss_ema + loss_q_statement_mean * (1 - config_training.loss_ema)
+
+
+
 
         #train action
         if store_data.statement_sl_state_total>config_training.iterstart_memorysize_SL and \
            store_data.act_state_sl_total>config_training.iterstart_memorysize_SL:
 
-            sampled_act = sampler_sl(act_state_dict_sl,store_data.act_state_sl_total)
-            sampled_statement = sampler_sl(statement_state_dict_sl,store_data.statement_sl_state_total)
+            if device==0:
+                loop_str = "tqdm(range(config_training.iter_SL))"
+            else:
+                loop_str = "range(config_training.iter_SL)"
+            
+            for iter_sl in eval(loop_str):
+                sampled_act = sampler_sl(act_state_dict_sl,store_data.act_state_sl_total)
+                sampled_statement = sampler_sl(statement_state_dict_sl,store_data.statement_sl_state_total)
 
-            sampled_data = sampled_act + sampled_statement
-            #augment data act
-            augmented_sample_data= []
-            for one_action in sampled_data:
-                one_action_aug = augment(one_action)
-                augmented_sample_data.append(one_action_aug)
+                sampled_data = sampled_act + sampled_statement
+                #augment data act
+                augmented_sample_data= []
+                for one_action in sampled_data:
+                    one_action_aug = augment(one_action)
+                    augmented_sample_data.append(one_action_aug)
 
-            #collect batch
-            batched_data = batch_collect(augmented_sample_data)
+                #collect batch
+                batched_data = batch_collect(augmented_sample_data)
 
-            #conver to cuda
-            s1_cuda = torch.tensor(batched_data["s1"],dtype=torch.int64).to(device)
-            s1_atten_mask = torch.tensor(batched_data["s1_atten_mask"],dtype=torch.int64).to(device)
+                #conver to cuda
+                s1_cuda = torch.tensor(batched_data["s1"],dtype=torch.int64).to(device)
+                s1_atten_mask = torch.tensor(batched_data["s1_atten_mask"],dtype=torch.int64).to(device)
 
-            nlp1_cuda = torch.tensor(batched_data["nlp1"],dtype=torch.int64).to(device)
-            nlp1_atten_mask = torch.tensor(batched_data["nlp1_atten_mask"],dtype=torch.int64).to(device)
+                nlp1_cuda = torch.tensor(batched_data["nlp1"],dtype=torch.int64).to(device)
+                nlp1_atten_mask = torch.tensor(batched_data["nlp1_atten_mask"],dtype=torch.int64).to(device)
 
-            act_type = torch.tensor(batched_data["act_type"],dtype=torch.bool).to(device)
-            #compute headtoken
-            headtoken = deepmodel_headtoken(s1_cuda,attention_mask=s1_atten_mask)
-            logits = deepmodel_a(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
+                act_type = torch.tensor(batched_data["act_type"],dtype=torch.bool).to(device)
+                #compute headtoken
+                headtoken = deepmodel_headtoken_ddp(s1_cuda,attention_mask=s1_atten_mask)
+                logits = deepmodel_a_ddp(headtoken,nlp1_cuda,act_type,attention_mask=nlp1_atten_mask)
+                
+                action_ids = torch.tensor(batched_data["act_ids"],dtype=torch.int64).to(device)
+                action_mask = torch.tensor(batched_data["act_mask"],dtype=torch.float32).to(device)
+                #comnpute loss
+                gather_index_act = action_ids[act_type].view(-1,1)
+                gather_index_nlp = action_ids[~act_type].view(-1,1)
+                act_mask_tensor = action_mask[act_type]
 
-        if iter>20:
+
+                prob_act = F.softmax(logits["act"]+act_mask_tensor,dim=-1)
+                prob_nlp = F.softmax(logits["statement"],dim=-1)
+
+                prob_act_selected = prob_act.gather(1,gather_index_act)
+                prob_nlp_selected = prob_nlp.gather(1,gather_index_nlp)
+
+                #log loss for act
+
+                loss_act = -torch.log(prob_act_selected).mean()
+                loss_nlp = -torch.log(prob_nlp_selected).mean()
+                loss_a = loss_act+loss_nlp+(prob_act*prob_act).sum()*0.+(prob_nlp*prob_nlp).sum()*0.
+
+
+                # update policy parameters
+                optimizer_a.zero_grad()
+                optimizer_headtoken.zero_grad()
+                loss_a.backward()
+                #compute the current norm of gradient
+                # torch.nn.utils.clip_grad_norm_(actor_ddp.parameters(), args.max_grad_norm_a)
+                optimizer_a.step()
+                optimizer_headtoken.step()
+
+                if device == 0:
+                    loss_a_mean = loss_a.detach().cpu().numpy() * config_training.loss_ema + loss_a_mean * (1 - config_training.loss_ema)
+                    loss_a_act_mean = loss_act.detach().cpu().numpy() * config_training.loss_ema + loss_a_act_mean * (1 - config_training.loss_ema)
+                    loss_a_statement_mean = loss_nlp.detach().cpu().numpy() * config_training.loss_ema + loss_a_statement_mean * (1 - config_training.loss_ema)
+
+
+        #print loss and save loss
+        if device == 0:
+            print("current loss is %f %f"%(loss_q_mean,loss_a_mean))
+
+
+            writer.add_scalar('Loss/a', loss_a_mean, iter)
+            writer.add_scalar('Loss/q', loss_q_mean, iter)
+            writer.add_scalar('Loss_a/act', loss_a_act_mean, iter)
+            writer.add_scalar('Loss_a/statement', loss_a_statement_mean, iter)
+            writer.add_scalar('Loss_q/act', loss_q_act_mean, iter)
+            writer.add_scalar('Loss_q/statement', loss_q_statement_mean, iter)
+
+
+
+        #save ckpt memory 
+        if (iter+1)%config_training.save_update == 0 and device==0:
+            if not os.path.exists("ckpt/"+config_training.save_dir):
+                os.mkdir("ckpt/"+config_training.save_dir)
+            torch.save(deepmodel_a_ddp.module.state_dict(), "ckpt/" + config_training.save_dir + "/act_update" + str(iter))
+            torch.save(deepmodel_q_ddp.module.state_dict(),"ckpt/" + config_training.save_dir + "/q_update" + str(iter))
+            torch.save(deepmodel_headtoken_ddp.module.state_dict(), "ckpt/" + config_training.save_dir + "/headtoken_update" + str(iter))
+            #dump the current memory
+            if not os.path.exists("memory/"+config_training.save_dir):
+                os.mkdir("memory/"+config_training.save_dir)
+            np.save("memory/"+config_training.save_dir+"/sl_act_dict"+str(iter),act_state_dict_sl)
+            np.save("memory/" + config_training.save_dir + "/sl_nlp_dict" + str(iter), statement_state_dict_sl)
+            np.save("memory/" + config_training.save_dir + "/rl_act_dict" + str(iter), act_state_dict)
+            np.save("memory/" + config_training.save_dir + "/rl_nlp_dict" + str(iter), statement_state_dict)
+
+        if iter>100:
             break
+
+    if device ==0:
+        writer.close()
 
     for q_id in range(config_training.num_sampler):
         queue_in_list[q_id].put(("done", None, None))
 
-    pywerewolf.utils.end_samplegame_group(proc_pool)
+    # pywerewolf.utils.end_samplegame_group(proc_pool)
+    pywerewolf.utils.end_samplegame_group_batch(proc_pool)
 
 
 

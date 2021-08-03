@@ -1,7 +1,8 @@
 default_special_token_list = ["game_start","check_werewolf_team","werewolf_agreed_kill",
                               "prophet_check_result","bad","good",
                               "dead_people","plyer_last_statement","player_statement",
-                              "none","statement","collected","voted_out"]
+                              "none","statement","collected","voted_out",
+                              "guard_select"]
 
 class tokenizer_base(object):
     def __init__(self,offset_special_token,special_token_list = default_special_token_list):

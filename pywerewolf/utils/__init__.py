@@ -7,3 +7,4 @@ from pywerewolf.utils.augmentation import cyclic_player
 from pywerewolf.utils.batch_collector import batch_collector
 
 from pywerewolf.utils.multiprocess_sample import start_samplegame_group,end_samplegame_group
+from pywerewolf.utils.multiprocess_sample_batch import start_samplegame_group_batch,end_samplegame_group_batch

@@ -45,11 +45,18 @@ class cyclic_player(object):
         else:
             act_id_aug = one_action["act_id"]
 
+        #replace the action mask with new order
+        if one_action["act_type"]=="act":
+            act_mask_aug = [one_action["act_mask"][shuffle_map.index(i)] for i in range(self.num_player)]
+        else:
+            act_mask_aug = one_action["act_mask"]
+
+
         augmented_data = {"sys1": sys1_aug,
                           "sys2": sys2_aug,
                           "nlp1": one_action["nlp1"],
                           "nlp2": one_action["nlp2"],
-                          "act_mask": one_action["act_mask"],
+                          "act_mask": act_mask_aug,
                           "act_type": one_action["act_type"],
                           "r_imme": one_action["r_imme"],
                           "r_finnal": one_action["r_finnal"],

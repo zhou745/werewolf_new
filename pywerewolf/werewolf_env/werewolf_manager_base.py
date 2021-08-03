@@ -273,6 +273,36 @@ class werewolf_manager_base(object):
                 status,
                 self.current_time)
 
+    def guard_select(self,action):
+
+        for player_id in self.type_id[5]:
+            #offset by position
+            guard_select = "guard_select "+str(action[player_id])
+            
+            self.current_guard = action[player_id]
+
+            self.player_system_state[player_id] += " "+guard_select
+
+        # create all the action mask
+        action_mask = self.gen_actmask(self.game_step[self.current_progress])
+
+        # create all the action type
+        action_type = self.gen_acttype(self.game_step[self.current_progress])
+
+        # not terminate reward 0
+        reward = [0. for player_id in range(self.num_player)]
+
+        status = "continue"
+
+        # compute action mask for current state
+        return (self.player_system_state,
+                self.player_nlp_state,
+                action_mask,
+                action_type,
+                reward,
+                status,
+                self.current_time)
+
     def summerize_night(self,action):
         #progress time
         self.progress_time()
@@ -462,6 +492,11 @@ class werewolf_manager_base(object):
         if step_name in ["werewolf_kill","prophet_check","vote_for_one"]:
             action_mask = [0. if player_id in self.alive_list else float("-inf")
                            for player_id in range(self.num_player)]
+        elif step_name == "guard_select":
+            action_mask = [0. if player_id in self.alive_list else float("-inf")
+                           for player_id in range(self.num_player)]
+            if self.current_guard>-0.5:
+                action_mask[self.current_guard] = float("-inf")
         else:
             action_mask = None
 
@@ -486,6 +521,9 @@ class werewolf_manager_base(object):
         elif step_name=="vote_for_one":
             action_type = ["act" if player_id in self.alive_list else "none"
                            for player_id in range(self.num_player)]
+        elif step_name == "guard_select":
+            action_type = ["act" if player_id in self.type_id[5] else "none"
+                           for player_id in range(self.num_player)]            
         return(action_type)
 
     def whole_village_progress(self,text):
