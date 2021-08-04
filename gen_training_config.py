@@ -4,9 +4,9 @@ import argparse
 parser = argparse.ArgumentParser(description='training_config')
 
 #RL env settings
-parser.add_argument('--game_per_sample', type=int, default=64)
+parser.add_argument('--game_per_sample', type=int, default=128)
 parser.add_argument('--num_sampler', type=int, default=1)
-parser.add_argument('--num_manager', type=int, default=64)
+parser.add_argument('--num_manager', type=int, default=128)
 parser.add_argument('--game_eta', type=int, default=0.1)
 parser.add_argument('--game_epsilon', type=float, default=0.1)
 parser.add_argument('--game_epsilon_scale', type=float, default=0.1)
@@ -30,13 +30,13 @@ parser.add_argument('--game_step', type=list, default=["check_werewolf_team","we
 parser.add_argument('--iterstart_memorysize_SL', type=int, default=128)
 parser.add_argument('--iterstart_memorysize_RL', type=int, default=128)
 parser.add_argument('--max_data_per_key', type=int, default=1024)
-parser.add_argument('--world_size', type=int, default=1)
+parser.add_argument('--world_size', type=int, default=4)
 parser.add_argument('--use_ema_model', type=bool, default=False)
 parser.add_argument('--batch_size_SL', type=int, default=512)
 parser.add_argument('--batch_size_RL', type=int, default=512)
 
-parser.add_argument('--iter_SL', type=int, default=10)
-parser.add_argument('--iter_RL', type=int, default=10)
+parser.add_argument('--iter_SL', type=int, default=5)
+parser.add_argument('--iter_RL', type=int, default=5)
 
 parser.add_argument('--actor_ema', type=float, default=1e-3)
 parser.add_argument('--critic_q_ema', type=float, default=1e-2)

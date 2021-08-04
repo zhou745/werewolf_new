@@ -11,7 +11,6 @@ import torch
 import os
 import socket
 import time
-import torch.distributed as dist
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -23,14 +22,14 @@ from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_name
 parser = argparse.ArgumentParser(description='config_name')
 parser.add_argument('--config_name', type=str)
 
-# os.environ['CUDA_VISIBLE_DEVICES']="0,1,2,3"
+# os.environ['CUDA_VISIBLE_DEVICES']="1,2,3,4"
 
 def main(args):
-    # pid = int(os.environ["SLURM_PROCID"])
-    # jobid = os.environ["SLURM_JOBID"]
+    pid = int(os.environ["SLURM_PROCID"])
+    jobid = os.environ["SLURM_JOBID"]
 
-    pid = 0
-    jobid = str(1)
+    # pid = 0
+    # jobid = str(1)
     config_training = np.load("training_config/"+args.config_name,allow_pickle=True).tolist()
 
     hostfile = "tcp/dist_url_" + jobid + ".txt"
@@ -64,6 +63,9 @@ def setup(rank, dist_url,world_size,name='nccl'):
 
 def cleanup():
     dist.destroy_process_group()
+
+def sig_decay(iter,delta,half_point,low_bound,Temperature):
+    return(delta/(1+np.exp((iter-half_point)/Temperature))+low_bound)
 
 def model_parallel(rank,pid,dist_url,config_training):
     
@@ -272,9 +274,6 @@ def model_parallel(rank,pid,dist_url,config_training):
                     loss_q_act_mean = loss_q_act.detach().cpu().numpy() * config_training.loss_ema + loss_q_act_mean * (1 - config_training.loss_ema)
                     loss_q_statement_mean = loss_q_nlp.detach().cpu().numpy() * config_training.loss_ema + loss_q_statement_mean * (1 - config_training.loss_ema)
 
-
-
-
         #train action
         if store_data.statement_sl_state_total>config_training.iterstart_memorysize_SL and \
            store_data.act_state_sl_total>config_training.iterstart_memorysize_SL:
@@ -358,10 +357,27 @@ def model_parallel(rank,pid,dist_url,config_training):
             writer.add_scalar('Loss_q/act', loss_q_act_mean, iter)
             writer.add_scalar('Loss_q/statement', loss_q_statement_mean, iter)
 
+        #decay lr
+        for g in optimizer_a.param_groups:
+            g['lr']=sig_decay(iter,(1-config_training.lr_epsilon_scale)*config_training.lr_q,
+                                            config_training.lr_halfpoint,
+                                            config_training.lr_epsilon_scale*config_training.lr_q,
+                                            config_training.lr_temper)
 
+        for g in optimizer_q.param_groups:
+            g['lr']=sig_decay(iter,(1-config_training.lr_epsilon_scale)*config_training.lr_q,
+                                            config_training.lr_halfpoint,
+                                            config_training.lr_epsilon_scale*config_training.lr_q,
+                                            config_training.lr_temper)
+
+        for g in optimizer_headtoken.param_groups:
+            g['lr']=sig_decay(iter,(1-config_training.lr_epsilon_scale)*config_training.lr_q,
+                                            config_training.lr_halfpoint,
+                                            config_training.lr_epsilon_scale*config_training.lr_q,
+                                            config_training.lr_temper)
 
         #save ckpt memory 
-        if (iter+1)%config_training.save_update == 0 and device==0:
+        if iter%config_training.save_update == 0 and device==0:
             if not os.path.exists("ckpt/"+config_training.save_dir):
                 os.mkdir("ckpt/"+config_training.save_dir)
             torch.save(deepmodel_a_ddp.module.state_dict(), "ckpt/" + config_training.save_dir + "/act_update" + str(iter))
@@ -374,9 +390,6 @@ def model_parallel(rank,pid,dist_url,config_training):
             np.save("memory/" + config_training.save_dir + "/sl_nlp_dict" + str(iter), statement_state_dict_sl)
             np.save("memory/" + config_training.save_dir + "/rl_act_dict" + str(iter), act_state_dict)
             np.save("memory/" + config_training.save_dir + "/rl_nlp_dict" + str(iter), statement_state_dict)
-
-        if iter>100:
-            break
 
     if device ==0:
         writer.close()
