@@ -27,9 +27,6 @@ parser.add_argument('--config_name', type=str)
 def main(args):
     pid = int(os.environ["SLURM_PROCID"])
     jobid = os.environ["SLURM_JOBID"]
-
-    # pid = 0
-    # jobid = str(1)
     config_training = np.load("training_config/"+args.config_name,allow_pickle=True).tolist()
 
     hostfile = "tcp/dist_url_" + jobid + ".txt"
@@ -77,10 +74,9 @@ def model_parallel(rank,pid,dist_url,config_training):
     print("current rank is %d"%(rank),flush=True)
     setup(rank,dist_url, config_training.world_size)
 
-    if not os.path.exists("tensorboard/"+config_training.save_dir):
-        os.mkdir("tensorboard/"+config_training.save_dir)
-
     if device ==0:
+        if not os.path.exists("tensorboard/" + config_training.save_dir):
+            os.mkdir("tensorboard/" + config_training.save_dir)
         writer = SummaryWriter("tensorboard/"+config_training.save_dir)
 
     #config for the model
@@ -347,7 +343,7 @@ def model_parallel(rank,pid,dist_url,config_training):
 
         #print loss and save loss
         if device == 0:
-            print("current loss is %f %f"%(loss_q_mean,loss_a_mean))
+            print("at iter %d current loss is %f %f" % (iter,loss_q_mean, loss_a_mean),flush=True)
 
 
             writer.add_scalar('Loss/a', loss_a_mean, iter)

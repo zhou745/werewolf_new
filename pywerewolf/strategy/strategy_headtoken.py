@@ -51,6 +51,27 @@ class strategy_headtoken(strategy_base):
 
         return (target_act,Response_type)
 
+    def eval(self,system_state,nlp_state,action_mask,action_type):
+        if action_type=="none":
+            return(0,"ave",None,None)
+
+        head_token = self.headtoken_generator(system_state)
+        print(head_token,flush=True)
+        #decide whether average policy or BR is used
+        policy_choose = random.uniform(0.,1)
+        #compute q value
+        q_value = self.q_generator(head_token,nlp_state,action_mask,action_type)
+        #compute policy
+        a_policy = self.action_generator(head_token,nlp_state,action_mask,action_type)
+        Response_type = "ave"
+
+        #normalize it to ensure sum < 1
+        a_policy = a_policy / np.sum(a_policy + 1e-7)
+
+        target_act = self.select_action(a_policy,action_mask)
+
+        return (target_act,Response_type,a_policy,q_value)
+
     def select_action(self,a_policy,action_mask):
 
         if action_mask == None:

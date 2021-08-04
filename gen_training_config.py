@@ -40,9 +40,9 @@ parser.add_argument('--iter_RL', type=int, default=5)
 
 parser.add_argument('--actor_ema', type=float, default=1e-3)
 parser.add_argument('--critic_q_ema', type=float, default=1e-2)
-parser.add_argument('--loss_ema', type=float, default=1e-2)
-parser.add_argument('--lr_act', type=float, default=1e-5)
-parser.add_argument('--lr_q', type=float, default=1e-5)
+parser.add_argument('--loss_ema', type=float, default=0.98)
+parser.add_argument('--lr_act', type=float, default=1e-4)
+parser.add_argument('--lr_q', type=float, default=1e-4)
 
 parser.add_argument('--warmup', type=bool, default=False)
 parser.add_argument('--warmup_iter', type=int, default=2000)
@@ -60,7 +60,7 @@ parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--save_update', type=int, default=1000)
 parser.add_argument('--max_update', type=int, default=2000000)
 
-parser.add_argument('--save_dir', type=str, default="2w_1g_1p_2v_cyclic_aug_batch")
+parser.add_argument('--save_dir', type=str, default="2w_1g_1p_2v_cyclic_aug_batch_exp2")
 parser.add_argument('--max_grad_norm_q', type=float, default=7)
 parser.add_argument('--max_grad_norm_a', type=float, default=7)
 parser.add_argument('--normalize_loss', type=float, default=30)
@@ -79,7 +79,8 @@ parser.add_argument('--mlp_intermediate_size', type=int, default=1024)
 parser.add_argument('--dropout', type=float, default=0.)
 
 def main(args):
-    config_name = "2w_1g_1p_2v_cyclic_aug_batch_config"
+    config_name = "2w_1g_1p_2v_cyclic_aug_batch_config_exp2"
+    # config_name = "debug"
     np.save("training_config/"+config_name,args)
 
 if __name__ == "__main__":
