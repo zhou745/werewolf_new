@@ -30,17 +30,21 @@ class MLP(nn.Module):
         h2 = self.fc2(l1)
         return(h2)
 
-class dict_headtoken_model(nn.Module):
-    def __init__(self,config,num_player,vocb_size,mlp_intermedia=1024):
+class dict_timed_headtoken_model(nn.Module):
+    def __init__(self,config,num_player,vocb_size,mlp_intermedia=1024,
+                                                  max_time = 12):
         super().__init__()
         self.num_player = num_player
         self.vocb_size = vocb_size
 
         self.bert_backbone = BertModel(config)
         self.mlp_intermedia = mlp_intermedia
+        self.max_time = max_time
+        assert self.max_time>1
+        self.hidden_size = config.hidden_size
 
-        self.act_mlp = MLP(config.hidden_size,self.num_player,intermedia=self.mlp_intermedia)
-        self.nlp_mlp  = MLP(config.hidden_size,self.vocb_size,intermedia=self.mlp_intermedia)
+        self.act_mlp = MLP(config.hidden_size*self.max_time,self.num_player,intermedia=self.mlp_intermedia)
+        self.nlp_mlp  = MLP(config.hidden_size*self.max_time,self.vocb_size,intermedia=self.mlp_intermedia)
 
 
     def forward(self,head_token,nlp_state,act_type,attention_mask=None):
@@ -59,11 +63,13 @@ class dict_headtoken_model(nn.Module):
         result = {"act":None,
                   "statement":None}
         if act_mask.sum()>0:
-            h_act = h1[0][act_mask,0,:]+0.*h1[0][act_mask,:,:].mean(axis=1)+h1[1][act_mask,:]*0.
+            h_act = h1[0][act_mask,0:self.max_time,:]+0.*h1[0][act_mask,:,:].mean()+h1[1][act_mask,:].mean()*0.
+            h_act = h_act.view(-1,self.max_time*self.hidden_size)
             logits_act = self.act_mlp(h_act)
             result["act"] = logits_act
         if nlp_mask.sum()>0:
-            h_nlp = h1[0][nlp_mask,0,:]+0.*h1[0][nlp_mask,:,:].mean(axis=1)+h1[1][nlp_mask,:]*0.
+            h_nlp = h1[0][nlp_mask,0:self.max_time,:]+0.*h1[0][nlp_mask,:,:].mean()+h1[1][nlp_mask,:].mean()*0.
+            h_nlp = h_nlp.view(-1, self.max_time * self.hidden_size)
             logits_nlp = self.nlp_mlp(h_nlp)
             result["statement"] = logits_nlp
         return(result)

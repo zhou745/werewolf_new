@@ -8,6 +8,8 @@ from tqdm import tqdm
 from pywerewolf.werewolf_env.werewolf_manager_cyclic import werewolf_manager_cyclic
 from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_named
 from pywerewolf.werewolf_env.werewolf_manager_base import werewolf_manager_base
+from pywerewolf.werewolf_env.werewolf_manager_timed_cyclic import werewolf_manager_timed_cyclic
+from pywerewolf.werewolf_env.werewolf_manager_timed import werewolf_manager_timed
 
 from pywerewolf.utils.tokenizer import tokenizer_base
 
@@ -16,6 +18,7 @@ from pywerewolf.strategy_batch.bert_headtoken_generator_batch import bert_headto
 from pywerewolf.strategy_batch.bert_a_generator_batch import bert_a_generator_batch
 from pywerewolf.strategy_batch.bert_q_generator_batch import bert_q_generator_batch
 from pywerewolf.strategy_batch.strategy_headtoken_batch import strategy_headtoken_batch
+from pywerewolf.strategy_batch.dict_timed_headtoken_generator_batch import dict_timed_headtoken_generator_batch
 
 def sig_decay(iter,delta,half_point,low_bound,Temperature):
     return(delta/(1+np.exp((iter-half_point)/Temperature))+low_bound)
@@ -45,6 +48,11 @@ def samplegame_agent(headtoken_model,a_model,q_model,
     #create head token generator
     if args.headtoken_generator == "bert_headtoken_generator_batch":
         headtoken_generator = bert_headtoken_generator_batch(headtoken_model,tokenizer,device,aligned_size=args.aligned_size)
+    elif args.headtoken_generator == "dict_timed_headtoken_generator_batch":
+        key_dict = np.load("headtoken_dict/"+args.key_dict,allow_pickle=True).tolist()
+        for mid in range(args.num_manager):
+            manager_list[mid].max_time = args.max_time
+        headtoken_generator = dict_timed_headtoken_generator_batch(key_dict,manager_list[0].offset_game_all,device)
     else:
         raise RuntimeError("unknown headtoken generator type")
 

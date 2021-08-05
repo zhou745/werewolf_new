@@ -3,17 +3,20 @@ import numpy as np
 import copy
 from tqdm import tqdm
 
-num_player = 4
+num_player = 6
 num_vocb = 16
 num_names = 10
 device = "cpu"
 
 play_one_game = False
-gen_headtoken = True
-num_game = 10
+check_generated_keys = True
+num_game = 10000
 
 name_headtoken = "1w_1p_2v_headtoken"
 save_headtoken_dict = "headtoken_dict/"
+
+game_step = ["check_werewolf_team","werewolf_kill","prophet_check","guard_select","summerize_night",
+                     "plyer_last_statement","make_statement_inturn","vote_for_one","plyer_last_statement"]
 
 def stable_softmax(X):
     exps = np.exp(X - np.max(X))
@@ -21,14 +24,22 @@ def stable_softmax(X):
 
 
 def main():
-    game_compose = [0,0,1,7]
+    game_compose = [0,0,1,5,7,7]
 
-    # manager = pywerewolf.werewolf_env.werewolf_manager_base(num_player,game_compose = game_compose)
+    # manager = pywerewolf.werewolf_env.werewolf_manager_base(num_player,game_compose = game_compose,
+    #                                                                    game_step = game_step)
 
-    manager = pywerewolf.werewolf_env.werewolf_manager_cyclic(num_player,game_compose=game_compose)
+    # manager = pywerewolf.werewolf_env.werewolf_manager_cyclic(num_player,game_compose=game_compose)
 
     # manager = pywerewolf.werewolf_env.werewolf_manager_named(num_player,num_names,
     #                                                          game_compose=game_compose)
+
+    # manager = pywerewolf.werewolf_env.werewolf_manager_timed(num_player, game_compose=game_compose,
+    #                                                                      game_step=game_step)
+
+    manager = pywerewolf.werewolf_env.werewolf_manager_timed_cyclic(num_player, game_compose=game_compose,
+                                                                                game_step=game_step,
+                                                                                max_time=10)
 
     #total num of token in game
     offset_game = manager.offset_game_all
@@ -63,11 +74,11 @@ def main():
             print(reward)
             print(status)
             print(ct)
-
-    state_dict = {}
     status_static = np.array([0,0,0],dtype=float)
 
-    if gen_headtoken:
+    if check_generated_keys:
+        load_tokens = np.load("headtoken_dict/2w_1g_1p_2v_timed.npy",allow_pickle=True).tolist()
+
         for game_idx in tqdm(range(num_game)):
             manager.reset()
             status = "continue"
@@ -83,11 +94,11 @@ def main():
                     act,rep = strategy.action(sys_s[i], nlp_s[i], act_mask, act_type[i])
                     actions.append(act)
                     response.append(rep)
-                    if act_type[i]!="none":
-                        if sys_s[i] not in state_dict.keys():
-                            state_dict.update({copy.copy(sys_s[i]):copy.copy(act_type[i])})
-                # one_game.append([sys_s,nlp_s,act_mask,act_type,reward,status,ct,actions,response])
-
+                    for key in sys_s[i]:
+                        try:
+                            assert key in load_tokens.keys()
+                        except:
+                            raise RuntimeError("\'"+key+"\'" + " not found in token_list")
 
             if "were" in status:
                 status_static[0] +=1
@@ -97,15 +108,8 @@ def main():
                 status_static[2] += 1
             else:
                 raise RuntimeError("unknown status")
-        for game in tqdm(game_record):
-            store_data(act_state_dict,statement_state_dict,act_state_dict_sl,statement_state_dict_sl,game)
 
         print(status_static/num_game)
-        print("find keys in total %d"%(len(state_dict.keys())))
-
-        print(act_state_dict)
-
-        # np.save(save_headtoken_dict+name_headtoken,state_dict)
 
     # print(manager.get_names())
 

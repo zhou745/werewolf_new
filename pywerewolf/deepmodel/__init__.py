@@ -3,3 +3,4 @@ from pywerewolf.deepmodel.headtoken_model import headtoken_model
 from pywerewolf.deepmodel.bert_headtoken_model import bert_headtoken_model
 from pywerewolf.deepmodel.bert_vector_cls import bert_vector_cls
 from pywerewolf.deepmodel.dict_headtoken_model import BertConfig
+from pywerewolf.deepmodel.dict_timed_headtoken_model import dict_timed_headtoken_model

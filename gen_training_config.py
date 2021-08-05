@@ -16,8 +16,8 @@ parser.add_argument('--game_temper',type=float,default=500.)
 parser.add_argument('--num_player', type=int, default=6)
 parser.add_argument('--vocab_size', type=int, default=16)
 parser.add_argument('--game_compose', type=list, default=[0,0,1,5,7,7])
-parser.add_argument('--game_manager', type=str, default="werewolf_manager_cyclic")
-parser.add_argument('--headtoken_generator', type=str, default="bert_headtoken_generator_batch")
+parser.add_argument('--game_manager', type=str, default="werewolf_manager_timed_cyclic")
+parser.add_argument('--headtoken_generator', type=str, default="dict_timed_headtoken_generator_batch")
 parser.add_argument('--a_generator', type=str, default="bert_a_generator_batch")
 parser.add_argument('--q_generator', type=str, default="bert_q_generator_batch")
 parser.add_argument('--strategy', type=str, default="strategy_headtoken_batch")
@@ -25,12 +25,13 @@ parser.add_argument('--memory_size',type=int,default=1024*1000)
 
 parser.add_argument('--game_step', type=list, default=["check_werewolf_team","werewolf_kill","prophet_check","guard_select","summerize_night",
                      "plyer_last_statement","make_statement_inturn","vote_for_one","plyer_last_statement"])
-
+parser.add_argument('--key_dict',type=str,default="2w_1g_1p_2v_timed.npy")
+parser.add_argument('--max_time',type=int,default=12)
 #training schedule
 parser.add_argument('--iterstart_memorysize_SL', type=int, default=128)
 parser.add_argument('--iterstart_memorysize_RL', type=int, default=128)
 parser.add_argument('--max_data_per_key', type=int, default=1024)
-parser.add_argument('--world_size', type=int, default=4)
+parser.add_argument('--world_size', type=int, default=1)
 parser.add_argument('--use_ema_model', type=bool, default=False)
 parser.add_argument('--batch_size_SL', type=int, default=512)
 parser.add_argument('--batch_size_RL', type=int, default=512)
@@ -60,7 +61,7 @@ parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--save_update', type=int, default=1000)
 parser.add_argument('--max_update', type=int, default=2000000)
 
-parser.add_argument('--save_dir', type=str, default="2w_1g_1p_2v_cyclic_aug_batch_exp2")
+parser.add_argument('--save_dir', type=str, default="2w_1g_1p_2v_timed_cyclic_aug_batch")
 parser.add_argument('--max_grad_norm_q', type=float, default=7)
 parser.add_argument('--max_grad_norm_a', type=float, default=7)
 parser.add_argument('--normalize_loss', type=float, default=30)
@@ -79,7 +80,7 @@ parser.add_argument('--mlp_intermediate_size', type=int, default=1024)
 parser.add_argument('--dropout', type=float, default=0.)
 
 def main(args):
-    config_name = "2w_1g_1p_2v_cyclic_aug_batch_config_exp2"
+    config_name = "2w_1g_1p_2v_timed_cyclic_aug_batch"
     # config_name = "debug"
     np.save("training_config/"+config_name,args)
 

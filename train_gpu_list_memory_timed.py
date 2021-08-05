@@ -27,11 +27,9 @@ parser.add_argument('--config_name', type=str)
 # os.environ['CUDA_VISIBLE_DEVICES']="1,2,3,4"
 
 def main(args):
-    # pid = int(os.environ["SLURM_PROCID"])
-    # jobid = os.environ["SLURM_JOBID"]
+    pid = int(os.environ["SLURM_PROCID"])
+    jobid = os.environ["SLURM_JOBID"]
 
-    pid = 0
-    jobid = str(1)
     config_training = np.load("training_config/" + args.config_name, allow_pickle=True).tolist()
 
     hostfile = "tcp/dist_url_" + jobid + ".txt"
