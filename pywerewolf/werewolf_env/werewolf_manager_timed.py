@@ -60,7 +60,7 @@ class werewolf_manager_timed(werewolf_manager_base):
             self.player_system_timed_state[player_id][self.current_time_idx] = \
                 copy.copy(self.player_system_state[player_id][self.last_time_len[player_id]:])
 
-        return(copy.copy(self.player_system_timed_state),
+        return(copy.deepcopy(self.player_system_timed_state),
                copy.copy(nlp_state),
                copy.copy(action_mask),
                copy.copy(action_type),

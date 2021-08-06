@@ -10,17 +10,20 @@ import time
 from pywerewolf.werewolf_env.werewolf_manager_base import werewolf_manager_base
 from pywerewolf.werewolf_env.werewolf_manager_cyclic import werewolf_manager_cyclic
 from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_named
+from pywerewolf.werewolf_env.werewolf_manager_timed import werewolf_manager_timed
+from pywerewolf.werewolf_env.werewolf_manager_timed_cyclic import werewolf_manager_timed_cyclic
 from pywerewolf.utils.tokenizer import tokenizer_base
 
 from pywerewolf.strategy.dict_headtoken_generator import dict_headtoken_generator
 from pywerewolf.strategy.bert_headtoken_generator import bert_headtoken_generator
 from pywerewolf.strategy.bert_a_generator import bert_a_generator
 from pywerewolf.strategy.bert_q_generator import bert_q_generator
+from pywerewolf.strategy.dict_timed_headtoken_generator import dict_timed_headtoken_generator
 from pywerewolf.strategy.strategy_headtoken import strategy_headtoken
 
 parser = argparse.ArgumentParser(description='config_name')
 parser.add_argument('--config_name', type=str)
-parser.add_argument('--iter_to_load', type=int,default=2000)
+parser.add_argument('--iter_to_load', type=int,default=9000)
 parser.add_argument('--eval_type', type=str, default="win_rate")
 parser.add_argument('--eval_num', type=int, default=1000)
 
@@ -34,27 +37,61 @@ def main(args):
                                                       game_step = config_eval.game_step)
     tokenizer = tokenizer_base(manager.offset_special_token)
 
-    config_model = pywerewolf.deepmodel.BertConfig(vocab_size=manager.offset_game_all,
-                                                   hidden_size=config_eval.hidden_size,
-                                                   num_hidden_layers=config_eval.num_hidden_layers,
-                                                   num_attention_heads=config_eval.num_attention_heads,
-                                                   intermediate_size=config_eval.bert_intermediate_size,
-                                                   hidden_dropout_prob=config_eval.dropout,
-                                                   attention_probs_dropout_prob=config_eval.dropout)
-
-    # deepmodel_headtoken = None
-    deepmodel_headtoken = pywerewolf.deepmodel.headtoken_model(config_model, config_eval.mlp_intermediate_size).to(device)
-    deepmodel_a = pywerewolf.deepmodel.bert_headtoken_model(config_model, config_eval.num_player,
-                                                            config_eval.vocab_size,
-                                                            config_eval.mlp_intermediate_size).to(device)
-    deepmodel_q = pywerewolf.deepmodel.bert_headtoken_model(config_model, config_eval.num_player,
-                                                            config_eval.vocab_size,
-                                                            config_eval.mlp_intermediate_size).to(device)
 
     #make strategys
     # create head token generator
     if config_eval.headtoken_generator.replace("_batch","") == "bert_headtoken_generator":
+
+        config_model = pywerewolf.deepmodel.BertConfig(vocab_size=manager.offset_game_all,
+                                                       hidden_size=config_eval.hidden_size,
+                                                       num_hidden_layers=config_eval.num_hidden_layers,
+                                                       num_attention_heads=config_eval.num_attention_heads,
+                                                       intermediate_size=config_eval.bert_intermediate_size,
+                                                       hidden_dropout_prob=config_eval.dropout,
+                                                       attention_probs_dropout_prob=config_eval.dropout)
+
+        # deepmodel_headtoken = None
+        deepmodel_headtoken = pywerewolf.deepmodel.headtoken_model(config_model, config_eval.mlp_intermediate_size).to(
+            device)
+        deepmodel_a = pywerewolf.deepmodel.bert_headtoken_model(config_model, config_eval.num_player,
+                                                                config_eval.vocab_size,
+                                                                config_eval.mlp_intermediate_size).to(device)
+        deepmodel_q = pywerewolf.deepmodel.bert_headtoken_model(config_model, config_eval.num_player,
+                                                                config_eval.vocab_size,
+                                                                config_eval.mlp_intermediate_size).to(device)
+
         headtoken_generator = bert_headtoken_generator(deepmodel_headtoken, tokenizer, device)
+
+        state_dict_a = torch.load("ckpt/"+config_eval.save_dir+"/act_update"+str(args.iter_to_load))
+        state_dict_q = torch.load("ckpt/" + config_eval.save_dir + "/q_update" + str(args.iter_to_load))
+        state_dict_headtoken = torch.load("ckpt/" + config_eval.save_dir + "/headtoken_update" + str(args.iter_to_load))
+        deepmodel_q.load_state_dict(state_dict_q)
+        deepmodel_a.load_state_dict(state_dict_a)
+        deepmodel_headtoken.load_state_dict(state_dict_headtoken)
+
+    elif config_eval.headtoken_generator.replace("_batch","") == "dict_timed_headtoken_generator":
+        key_dict = np.load("headtoken_dict/"+config_eval.key_dict,allow_pickle=True).tolist()
+        headtoken_generator = dict_timed_headtoken_generator(key_dict, manager.offset_game_all, device)
+
+        config_model = pywerewolf.deepmodel.BertConfig(vocab_size=manager.offset_game_all+len(key_dict.keys()),
+                                                       hidden_size=config_eval.hidden_size,
+                                                       num_hidden_layers=config_eval.num_hidden_layers,
+                                                       num_attention_heads=config_eval.num_attention_heads,
+                                                       intermediate_size=config_eval.bert_intermediate_size,
+                                                       hidden_dropout_prob=config_eval.dropout,
+                                                       attention_probs_dropout_prob=config_eval.dropout)
+
+        # deepmodel_headtoken = None
+        deepmodel_a = pywerewolf.deepmodel.dict_timed_headtoken_model(config_model, config_eval.num_player,
+                                                                config_eval.vocab_size,
+                                                                config_eval.mlp_intermediate_size).to(device)
+        deepmodel_q = pywerewolf.deepmodel.dict_timed_headtoken_model(config_model, config_eval.num_player,
+                                                                config_eval.vocab_size,
+                                                                config_eval.mlp_intermediate_size).to(device)
+        state_dict_a = torch.load("ckpt/"+config_eval.save_dir+"/act_update"+str(args.iter_to_load))
+        state_dict_q = torch.load("ckpt/" + config_eval.save_dir + "/q_update" + str(args.iter_to_load))
+        deepmodel_q.load_state_dict(state_dict_q)
+        deepmodel_a.load_state_dict(state_dict_a)
     else:
         raise RuntimeError("unknown headtoken generator type")
 

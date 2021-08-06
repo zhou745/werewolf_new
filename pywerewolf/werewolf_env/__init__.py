@@ -1,3 +1,5 @@
 from pywerewolf.werewolf_env.werewolf_manager_base import werewolf_manager_base
 from pywerewolf.werewolf_env.werewolf_manager_cyclic import werewolf_manager_cyclic
 from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_named
+from pywerewolf.werewolf_env.werewolf_manager_timed import werewolf_manager_timed
+from pywerewolf.werewolf_env.werewolf_manager_timed_cyclic import werewolf_manager_timed_cyclic

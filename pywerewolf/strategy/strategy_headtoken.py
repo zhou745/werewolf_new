@@ -56,7 +56,6 @@ class strategy_headtoken(strategy_base):
             return(0,"ave",None,None)
 
         head_token = self.headtoken_generator(system_state)
-        print(head_token,flush=True)
         #decide whether average policy or BR is used
         policy_choose = random.uniform(0.,1)
         #compute q value

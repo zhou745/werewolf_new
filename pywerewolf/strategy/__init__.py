@@ -9,3 +9,4 @@ from pywerewolf.strategy.dict_headtoken_generator import dict_headtoken_generato
 from pywerewolf.strategy.bert_q_generator import bert_q_generator
 from pywerewolf.strategy.bert_a_generator import bert_a_generator
 from pywerewolf.strategy.bert_headtoken_generator import bert_headtoken_generator
+from pywerewolf.strategy.dict_timed_headtoken_generator import dict_timed_headtoken_generator
