@@ -12,6 +12,7 @@ from pywerewolf.werewolf_env.werewolf_manager_cyclic import werewolf_manager_cyc
 from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_named
 from pywerewolf.werewolf_env.werewolf_manager_timed import werewolf_manager_timed
 from pywerewolf.werewolf_env.werewolf_manager_timed_cyclic import werewolf_manager_timed_cyclic
+from pywerewolf.werewolf_env.werewolf_manager_timed_voteob_cyclic import werewolf_manager_timed_voteob_cyclic
 from pywerewolf.utils.tokenizer import tokenizer_base
 
 from pywerewolf.strategy.dict_headtoken_generator import dict_headtoken_generator
@@ -23,7 +24,7 @@ from pywerewolf.strategy.strategy_headtoken import strategy_headtoken
 
 parser = argparse.ArgumentParser(description='config_name')
 parser.add_argument('--config_name', type=str)
-parser.add_argument('--iter_to_load', type=int,default=9000)
+parser.add_argument('--iter_to_load', type=int,default=22000)
 parser.add_argument('--eval_type', type=str, default="win_rate")
 parser.add_argument('--eval_num', type=int, default=1000)
 

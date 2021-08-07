@@ -8,8 +8,8 @@ num_vocb = 16
 num_names = 10
 device = "cpu"
 
-play_one_game = False
-check_generated_keys = True
+play_one_game = True
+check_generated_keys = False
 num_game = 10000
 
 name_headtoken = "1w_1p_2v_headtoken"
@@ -37,7 +37,11 @@ def main():
     # manager = pywerewolf.werewolf_env.werewolf_manager_timed(num_player, game_compose=game_compose,
     #                                                                      game_step=game_step)
 
-    manager = pywerewolf.werewolf_env.werewolf_manager_timed_cyclic(num_player, game_compose=game_compose,
+    # manager = pywerewolf.werewolf_env.werewolf_manager_timed_cyclic(num_player, game_compose=game_compose,
+    #                                                                             game_step=game_step,
+    #                                                                             max_time=10)
+
+    manager = pywerewolf.werewolf_env.werewolf_manager_timed_voteob_cyclic(num_player, game_compose=game_compose,
                                                                                 game_step=game_step,
                                                                                 max_time=10)
 

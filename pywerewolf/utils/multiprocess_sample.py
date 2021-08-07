@@ -8,6 +8,7 @@ from tqdm import tqdm
 from pywerewolf.werewolf_env.werewolf_manager_cyclic import werewolf_manager_cyclic
 from pywerewolf.werewolf_env.werewolf_manager_named import werewolf_manager_named
 from pywerewolf.werewolf_env.werewolf_manager_base import werewolf_manager_base
+from pywerewolf.werewolf_env.werewolf_manager_timed_voteob_cyclic import werewolf_manager_timed_voteob_cyclic
 
 from pywerewolf.utils.tokenizer import tokenizer_base
 
