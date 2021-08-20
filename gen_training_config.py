@@ -16,7 +16,7 @@ parser.add_argument('--game_temper',type=float,default=500.)
 parser.add_argument('--num_player', type=int, default=6)
 parser.add_argument('--vocab_size', type=int, default=64)
 parser.add_argument('--game_compose', type=list, default=[0,0,1,5,7,7])
-parser.add_argument('--game_manager', type=str, default="werewolf_manager_timed_cyclic")
+parser.add_argument('--game_manager', type=str, default="werewolf_manager_timed_voteob_cyclic")
 parser.add_argument('--headtoken_generator', type=str, default="dict_timed_headtoken_generator_batch")
 parser.add_argument('--a_generator', type=str, default="bert_a_generator_batch")
 parser.add_argument('--q_generator', type=str, default="bert_q_generator_batch")
@@ -51,7 +51,7 @@ parser.add_argument('--lr_epsilon_scale', type=float, default=0.5)
 parser.add_argument('--lr_halfpoint',type=int, default=100000)
 parser.add_argument('--lr_temper',type=float,default=2000.)
 
-parser.add_argument('--aligned_size', type=int, default=96)
+parser.add_argument('--aligned_size', type=int, default=128)
 parser.add_argument('--gamma', type=float, default=1.0)
 
 #random settings
@@ -61,7 +61,7 @@ parser.add_argument('--seed', type=int, default=1234)
 parser.add_argument('--save_update', type=int, default=1000)
 parser.add_argument('--max_update', type=int, default=2000000)
 
-parser.add_argument('--save_dir', type=str, default="2w_1g_1p_2v_timed_vocb64_cyclic_aug_batch")
+parser.add_argument('--save_dir', type=str, default="2w_1g_1p_2v_timed_vocb64_voteob_cyclic_aug_batch")
 parser.add_argument('--max_grad_norm_q', type=float, default=7)
 parser.add_argument('--max_grad_norm_a', type=float, default=7)
 parser.add_argument('--normalize_loss', type=float, default=30)
@@ -80,7 +80,7 @@ parser.add_argument('--mlp_intermediate_size', type=int, default=1024)
 parser.add_argument('--dropout', type=float, default=0.)
 
 def main(args):
-    config_name = "2w_1g_1p_2v_timed_vocb64_cyclic_aug_batch"
+    config_name = "2w_1g_1p_2v_timed_vocb64_voteob_cyclic_aug_batch"
     # config_name = "debug"
     np.save("training_config/"+config_name,args)
 

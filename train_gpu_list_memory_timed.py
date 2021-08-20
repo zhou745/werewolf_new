@@ -411,6 +411,10 @@ def model_parallel(rank, pid, dist_url, config_training):
                        "ckpt/" + config_training.save_dir + "/act_update" + str(iter))
             torch.save(deepmodel_q_ddp.module.state_dict(),
                        "ckpt/" + config_training.save_dir + "/q_update" + str(iter))
+            torch.save(optimizer_a.state_dict(),
+                       "ckpt/" + config_training.save_dir + "/a_optim" + str(iter))
+            torch.save(optimizer_q.state_dict(),
+                       "ckpt/" + config_training.save_dir + "/q_optim" + str(iter))
             # torch.save(deepmodel_headtoken_ddp.module.state_dict(),
             #            "ckpt/" + config_training.save_dir + "/headtoken_update" + str(iter))
             # dump the current memory
